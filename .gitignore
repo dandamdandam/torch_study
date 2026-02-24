@@ -5,3 +5,9 @@
 /share
 /data
 pyvenv.cfg
+
+w4/data/
+w4/wandb/
+w4/results/
+w4/outputs/
+w4/.env
