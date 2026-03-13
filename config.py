@@ -7,7 +7,7 @@ class BaseConfig:
     project_name: str = "accelerator"
     run_name: str = "train"
 
-    output_dir: str = "results"
+    output_dir: str = "results/basic"
     checkpointing_steps: int = 300
     logging_steps: int = 20
     eval_steps: int = 50
@@ -29,6 +29,7 @@ class BaseConfig:
 class TestConfig(BaseConfig):
     run_name: str = "test"
 
+    output_dir: str = "results/test"
     num_samples: int | None = 128
     logging_steps: int = 3
 
@@ -36,6 +37,7 @@ class TestConfig(BaseConfig):
 class LoRAConfig(BaseConfig):
     run_name: str = "use_lora"
 
+    output_dir: str = "results/lora"
     num_samples: int | None = 128
     logging_steps: int = 3
     peft: str = "LoRA"

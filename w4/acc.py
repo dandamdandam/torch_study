@@ -20,7 +20,7 @@ from utils import Preprocessor
 
 logger = get_logger(__name__, log_level="INFO")
 
-# CUDA_VISIBLE_DEVICES=5,6 accelerate launch --config_file acc_config.yaml acc.py
+# CUDA_VISIBLE_DEVICES=5,6 accelerate launch --config_file acc_config.yaml acc.py --config-name basic
 
 def evaluate(model, eval_dataloader, accelerator: Accelerator):
     model.eval()
@@ -54,7 +54,7 @@ def main(config: BaseConfig):
     logger.info(accelerator.state)
     if os.environ.get("WANDB_API_KEY"):
         accelerator.init_trackers(
-            project_name=config.project_name, config=dict(config), init_kwargs={"wandb": {"name": config.run_name}} # type: ignore
+            project_name=config.project_name, config={ **dict(config), "exec_file": __file__ }, init_kwargs={"wandb": {"name": config.run_name}} # type: ignore
         )
         logger.info(f"WandB initialized with project: {config.project_name}, run: {config.run_name}")
     else:

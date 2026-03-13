@@ -22,7 +22,15 @@ class Preprocessor:
 
     @staticmethod
     def build_prompt(context: str, question: str) -> str:
-        return f"{question}\n\nASCII maze:\n{context}\n\nAnswer:\n"
+        return f"""You are a navigation agent. Given an ASCII maze, move from the start cell 'S' to the end cell 'E'.
+Respond with a sequence of moves using the letters N, S, W, E: 
+{question}
+
+ASCII maze:
+{context}
+
+Answer:
+"""
 
     def prepare_train_features(self, examples):
         questions = [q.lstrip() for q in examples[self.question_column_name]]
@@ -81,7 +89,7 @@ class Preprocessor:
         tokenized["gold"] = examples[self.answer_column_name]
         return tokenized
 
-    def get_dataset(self, purpose, accelerator, per_device_train_batch_size, seed, num_samples = None):
+    def get_dataset(self, purpose, accelerator, per_device_train_batch_size, seed, num_samples=None, return_type="data_loader"):
         dataset = load_dataset("selimaktas/maze-curriculum-dataset", split="train").train_test_split(test_size=0.1)
         column_names = dataset["train"].column_names
         if purpose == "train":
@@ -109,6 +117,9 @@ class Preprocessor:
             index = random.sample(range(len(eval_dataset)), 1)[0]
             logger.info(f"Sample {index} of the eval set: {eval_dataset[index]}.")
 
+            if return_type == "dataset":
+                return train_dataset, eval_dataset
+
             train_dataloader = DataLoader(train_dataset, batch_size=per_device_train_batch_size, shuffle=False, collate_fn=default_data_collator, drop_last=True) # type: ignore
             eval_dataloader = DataLoader(eval_dataset, batch_size=per_device_train_batch_size, shuffle=False, collate_fn=default_data_collator, drop_last=True) # type: ignore
 
@@ -125,6 +136,10 @@ class Preprocessor:
                 )
             index = random.sample(range(len(test_dataset)), 1)[0]
             logger.info(f"Sample {index} of the eval set: {test_dataset[index]}.")
+
+            if return_type == "dataset":
+                return test_dataset
+
             test_dataloader = DataLoader(test_dataset, batch_size=per_device_train_batch_size, shuffle=False, collate_fn=default_data_collator, drop_last=True) # type: ignore
 
             return test_dataloader
@@ -168,3 +183,86 @@ def compute_exact_match(preds, golds):
         em += int(normalize_answer(p) == normalize_answer(g))
     em /= max(1, len(preds))
     return em
+
+
+class Preprocessor2(Preprocessor):
+    """Chat template 형식을 사용하는 Preprocessor"""
+
+    def prepare_train_features(self, examples):
+        questions = [q.lstrip() for q in examples[self.question_column_name]]
+        contexts = examples[self.context_column_name]
+        answers = examples[self.answer_column_name]
+
+        formatted_texts = []
+        
+        for question, context, answer in zip(questions, contexts, answers):
+            # Chat template 형식으로 메시지 구성
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a navigation agent. Given an ASCII maze, move from the start cell 'S' to the end cell 'E'.\nRespond with a sequence of moves using the letters N, S, W, E",
+                },
+                {
+                    "role": "user",
+                    "content": f"{question}\n\nASCII maze:\n{context}\n\nAnswer:",
+                },
+                {
+                    "role": "assistant",
+                    "content": answer,
+                },
+            ]
+
+            formatted_text = self.tokenizer.apply_chat_template(
+                conversation=messages,
+                tokenize=False,
+                add_generation_prompt=False,
+            )
+            formatted_texts.append(formatted_text)
+
+        tokenized = self.tokenizer(
+            formatted_texts,
+            truncation=True,
+            max_length=self.max_length,
+            padding="max_length",
+            add_special_tokens=False,
+        )
+
+        tokenized["labels"] = tokenized["input_ids"].copy()
+        return tokenized
+
+    def prepare_test_features(self, examples):
+        questions = [q.lstrip() for q in examples[self.question_column_name]]
+        contexts = examples[self.context_column_name]
+
+        formatted_texts = []
+        
+        for question, context in zip(questions, contexts):
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a navigation agent. Given an ASCII maze, move from the start cell 'S' to the end cell 'E'.\nRespond with a sequence of moves using the letters N, S, W, E",
+                },
+                {
+                    "role": "user",
+                    "content": f"{question}\n\nASCII maze:\n{context}\n\nAnswer:",
+                },
+            ]
+
+            formatted_text = self.tokenizer.apply_chat_template(
+                conversation=messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            formatted_texts.append(formatted_text)
+
+        tokenized = self.tokenizer(
+            formatted_texts,
+            truncation=True,
+            max_length=self.max_length,
+            padding="max_length",
+            add_special_tokens=False,
+        )
+
+        tokenized["maze"] = examples[self.context_column_name]
+        tokenized["gold"] = examples[self.answer_column_name]
+        return tokenized
